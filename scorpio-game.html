@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STING ZONE — Scorpio Chase</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --neon-r: #ff003c;
+  --neon-g: #00ffaa;
+  --neon-b: #00cfff;
+  --neon-y: #ffe600;
+  --bg: #03030f;
+}
+
+html, body {
+  width:100vw; height:100vh;
+  overflow:hidden;
+  background: var(--bg);
+  cursor: none;
+  font-family: 'Orbitron', monospace;
+  user-select: none;
+}
+
+/* ── CANVASES ── */
+#c-stars, #c-trail, #c-game {
+  position:fixed; inset:0;
+  pointer-events:none;
+}
+#c-stars { z-index:1; }
+#c-trail  { z-index:2; }
+#c-game   { z-index:3; }
+
+/* ── HUD ── */
+#hud {
+  position:fixed; inset:0;
+  z-index:10;
+  pointer-events:none;
+  padding:18px 24px;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.hud-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+}
+.hud-score {
+  display:flex; flex-direction:column; gap:2px;
+}
+.hud-label {
+  font-size:.5rem;
+  letter-spacing:.3em;
+  color:rgba(0,207,255,.5);
+  font-family:'Share Tech Mono', monospace;
+}
+.hud-value {
+  font-size:2rem;
+  font-weight:900;
+  line-height:1;
+  background: linear-gradient(90deg, var(--neon-b), var(--neon-g));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  filter: drop-shadow(0 0 8px rgba(0,207,255,.7));
+}
+.hud-hi { text-align:right; }
+.hud-hi .hud-value {
+  font-size:1rem;
+  background: linear-gradient(90deg, var(--neon-y), #ff8c00);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  filter:drop-shadow(0 0 6px rgba(255,230,0,.6));
+}
+
+/* wave badge */
+#wave-badge {
+  position:fixed;
+  top:18px; left:50%; transform:translateX(-50%);
+  z-index:11;
+  pointer-events:none;
+  text-align:center;
+}
+#wave-badge .wave-label {
+  font-size:.45rem; letter-spacing:.4em;
+  color:rgba(255,255,255,.35);
+  font-family:'Share Tech Mono', monospace;
+}
+#wave-badge .wave-num {
+  font-size:1.1rem; font-weight:700;
+  background: linear-gradient(90deg,#ff0080,#ff8c00,#ffe600,#00ff88,#00cfff,#a855f7);
+  background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation: wshift 2s linear infinite;
+}
+@keyframes wshift { to { background-position:-200% 0; } }
+
+/* lives */
+#lives {
+  position:fixed;
+  bottom:20px; left:50%; transform:translateX(-50%);
+  z-index:11;
+  display:flex; gap:14px; align-items:center;
+  pointer-events:none;
+}
+.life-dot {
+  width:14px; height:14px; border-radius:50%;
+  background: var(--neon-r);
+  box-shadow: 0 0 12px 4px var(--neon-r);
+  transition: all .3s;
+}
+.life-dot.dead {
+  background: rgba(255,0,60,.12);
+  box-shadow: 0 0 6px 1px rgba(255,0,60,.2);
+}
+
+/* combo flash */
+#combo {
+  position:fixed;
+  top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:20;
+  font-size:3.5rem; font-weight:900;
+  pointer-events:none;
+  opacity:0;
+  transition: opacity .3s;
+  text-shadow: 0 0 30px currentColor;
+  letter-spacing:.05em;
+}
+
+/* ── OVERLAY SCREENS ── */
+.screen {
+  position:fixed; inset:0;
+  z-index:30;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:24px;
+  background: radial-gradient(ellipse at center, rgba(3,3,15,.85) 0%, rgba(3,3,15,.98) 100%);
+  backdrop-filter: blur(3px);
+}
+.screen.hidden { display:none; }
+
+.title-glow {
+  font-size: clamp(2.5rem, 8vw, 5.5rem);
+  font-weight:900;
+  letter-spacing:.15em;
+  background: linear-gradient(135deg,#ff003c,#ff8c00,#ffe600,#00ff88,#00cfff,#a855f7,#ff003c);
+  background-size:300%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation: wshift 2.5s linear infinite;
+  filter: drop-shadow(0 0 24px rgba(0,207,255,.5));
+  text-align:center;
+}
+.sub-title {
+  font-size:clamp(.6rem,1.8vw,.9rem);
+  letter-spacing:.6em;
+  color:rgba(255,255,255,.35);
+  font-family:'Share Tech Mono', monospace;
+  text-align:center;
+}
+
+.stat-row {
+  display:flex; gap:40px; align-items:center;
+  margin:8px 0;
+}
+.stat-box {
+  text-align:center;
+}
+.stat-box .val {
+  font-size:2rem; font-weight:900;
+  color: var(--neon-g);
+  filter:drop-shadow(0 0 8px var(--neon-g));
+}
+.stat-box .lbl {
+  font-size:.45rem; letter-spacing:.35em;
+  color:rgba(255,255,255,.35);
+  font-family:'Share Tech Mono', monospace;
+}
+
+.how-to {
+  font-size:.6rem; letter-spacing:.2em;
+  color:rgba(255,255,255,.3);
+  font-family:'Share Tech Mono', monospace;
+  text-align:center;
+  line-height:1.9;
+  max-width:420px;
+}
+.how-to span { color:rgba(0,207,255,.7); }
+
+.btn {
+  font-family:'Orbitron', monospace;
+  font-size:.8rem; font-weight:700;
+  letter-spacing:.35em;
+  padding:14px 42px;
+  border:2px solid var(--neon-b);
+  background: transparent;
+  color: var(--neon-b);
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  transition: all .2s;
+  text-transform:uppercase;
+}
+.btn::before {
+  content:'';
+  position:absolute; inset:0;
+  background: var(--neon-b);
+  transform:scaleX(0); transform-origin:left;
+  transition: transform .2s;
+  z-index:-1;
+}
+.btn:hover { color:#000; }
+.btn:hover::before { transform:scaleX(1); }
+
+/* tag flash overlay */
+#tag-flash {
+  position:fixed; inset:0; z-index:25;
+  background:rgba(255,0,60,.35);
+  opacity:0;
+  pointer-events:none;
+  transition: opacity .08s;
+}
+
+/* cursor dot */
+#cursor-dot {
+  position:fixed; width:14px; height:14px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 16px 5px #fff, 0 0 36px 10px var(--neon-b);
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  z-index:100;
+}
+
+/* orb pop text */
+.orb-pop {
+  position:fixed;
+  font-size:.85rem; font-weight:700; letter-spacing:.1em;
+  color: var(--neon-y);
+  filter:drop-shadow(0 0 8px var(--neon-y));
+  pointer-events:none;
+  z-index:15;
+  animation: orbfloat .9s ease-out forwards;
+}
+@keyframes orbfloat {
+  0%   { opacity:1; transform:translateY(0) scale(1); }
+  100% { opacity:0; transform:translateY(-60px) scale(1.4); }
+}
+
+/* wave announce */
+#wave-announce {
+  position:fixed;
+  top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:22;
+  font-size:clamp(1.5rem,4vw,3rem);
+  font-weight:900; letter-spacing:.2em;
+  pointer-events:none;
+  opacity:0;
+  color: var(--neon-y);
+  text-shadow:0 0 30px var(--neon-y), 0 0 60px #ff8c00;
+  text-align:center;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- CANVASES -->
+<canvas id="c-stars"></canvas>
+<canvas id="c-trail"></canvas>
+<canvas id="c-game"></canvas>
+
+<!-- CURSOR -->
+<div id="cursor-dot"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-top">
+    <div class="hud-score">
+      <div class="hud-label">SCORE</div>
+      <div class="hud-value" id="hud-score">0</div>
+    </div>
+    <div class="hud-score hud-hi">
+      <div class="hud-label">BEST</div>
+      <div class="hud-value" id="hud-best">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="wave-badge">
+  <div class="wave-label">WAVE</div>
+  <div class="wave-num" id="wave-num">1</div>
+</div>
+
+<div id="lives"></div>
+<div id="combo"></div>
+<div id="tag-flash"></div>
+<div id="wave-announce"></div>
+
+<!-- ── START SCREEN ── -->
+<div class="screen" id="screen-start">
+  <div class="title-glow">STING ZONE</div>
+  <div class="sub-title">RAINBOW SCORPIO SURVIVAL</div>
+  <div class="how-to">
+    <span>MOVE</span> YOUR CURSOR TO SURVIVE<br>
+    <span>AVOID</span> THE SCORPIOS OR LOSE A LIFE<br>
+    <span>COLLECT</span> GLOWING ORBS FOR BONUS POINTS<br>
+    <span>SURVIVE</span> EACH WAVE — THEY GET FASTER
+  </div>
+  <button class="btn" id="btn-start">START GAME</button>
+</div>
+
+<!-- ── GAME OVER SCREEN ── -->
+<div class="screen hidden" id="screen-over">
+  <div class="title-glow" style="font-size:clamp(1.8rem,5vw,3.5rem)">GAME OVER</div>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="val" id="go-score">0</div>
+      <div class="lbl">SCORE</div>
+    </div>
+    <div class="stat-box">
+      <div class="val" id="go-wave" style="color:var(--neon-b);filter:drop-shadow(0 0 8px var(--neon-b))">1</div>
+      <div class="lbl">WAVE REACHED</div>
+    </div>
+    <div class="stat-box">
+      <div class="val" id="go-best" style="color:var(--neon-y);filter:drop-shadow(0 0 8px var(--neon-y))">0</div>
+      <div class="lbl">BEST</div>
+    </div>
+  </div>
+  <button class="btn" id="btn-restart">PLAY AGAIN</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  CANVAS SETUP
+// ═══════════════════════════════════════════
+const CS = document.getElementById('c-stars');
+const CT = document.getElementById('c-trail');
+const CG = document.getElementById('c-game');
+const xs = CS.getContext('2d');
+const xt = CT.getContext('2d');
+const xg = CG.getContext('2d');
+
+function resizeAll(){
+  [CS,CT,CG].forEach(c=>{ c.width=innerWidth; c.height=innerHeight; });
+}
+resizeAll();
+window.addEventListener('resize', resizeAll);
+
+// ═══════════════════════════════════════════
+//  STARS
+// ═══════════════════════════════════════════
+const STARS = Array.from({length:260},()=>({
+  x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+  r:Math.random()*1.4+.2, a:Math.random(), sp:Math.random()*.003+.001
+}));
+function drawStars(){
+  xs.clearRect(0,0,CS.width,CS.height);
+  STARS.forEach(s=>{
+    s.a+=s.sp; if(s.a>1)s.a=0;
+    xs.beginPath();
+    xs.arc(s.x,s.y,s.r,0,Math.PI*2);
+    xs.fillStyle=`rgba(255,255,255,${Math.sin(s.a*Math.PI)*.85})`;
+    xs.fill();
+  });
+}
+
+// ═══════════════════════════════════════════
+//  COLOUR HELPERS
+// ═══════════════════════════════════════════
+function hsl(h,s,l,a=1){ return `hsla(${((h%360)+360)%360},${s}%,${l}%,${a})`; }
+
+// ═══════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════
+let STATE = 'start'; // start | playing | over
+let score=0, bestScore=+(localStorage.getItem('sz_best')||0);
+let lives=3, wave=1, tick=0, hueOff=0;
+let invincible=false, invTimer=0;
+let survivalTimer=0;    // ms survived → score
+let waveTimer=0;        // ms in wave
+const WAVE_DURATION = 18000; // 18s per wave
+
+// Mouse
+const mouse = {x:innerWidth/2, y:innerHeight/2};
+const cursorEl = document.getElementById('cursor-dot');
+document.addEventListener('mousemove',e=>{
+  mouse.x=e.clientX; mouse.y=e.clientY;
+  cursorEl.style.left=e.clientX+'px';
+  cursorEl.style.top=e.clientY+'px';
+});
+
+// ═══════════════════════════════════════════
+//  SCORPIOS
+// ═══════════════════════════════════════════
+let scorpios = [];
+
+function makeScorpio(id){
+  // Spawn at edge of screen
+  const side = Math.floor(Math.random()*4);
+  let sx,sy;
+  if(side===0){ sx=Math.random()*innerWidth; sy=-60; }
+  else if(side===1){ sx=innerWidth+60; sy=Math.random()*innerHeight; }
+  else if(side===2){ sx=Math.random()*innerWidth; sy=innerHeight+60; }
+  else { sx=-60; sy=Math.random()*innerHeight; }
+
+  const baseSpeed = 2.8 + wave*0.55 + id*0.3;
+  return {
+    id,
+    x:sx, y:sy,
+    vx:0, vy:0,
+    angle:0,
+    speed: baseSpeed,
+    hueBase: (id*72 + wave*40)%360,
+    tail: Array.from({length:16},()=>({x:sx,y:sy})),
+    tagCooldown:0
+  };
+}
+
+function initWave(){
+  const count = Math.min(1 + wave, 6);
+  scorpios = Array.from({length:count}, (_,i)=>makeScorpio(i));
+}
+
+// ═══════════════════════════════════════════
+//  ORBS
+// ═══════════════════════════════════════════
+let orbs = [];
+function spawnOrb(){
+  const margin=60;
+  orbs.push({
+    x: margin + Math.random()*(innerWidth-margin*2),
+    y: margin + Math.random()*(innerHeight-margin*2),
+    r: 10 + Math.random()*6,
+    hue: Math.random()*360,
+    pulse: Math.random()*Math.PI*2,
+    value: 10
+  });
+}
+function initOrbs(){ orbs=[]; for(let i=0;i<4;i++) spawnOrb(); }
+
+// ═══════════════════════════════════════════
+//  START / RESTART
+// ═══════════════════════════════════════════
+function startGame(){
+  score=0; lives=3; wave=1; tick=0; survivalTimer=0; waveTimer=0;
+  invincible=false;
+  document.getElementById('screen-start').classList.add('hidden');
+  document.getElementById('screen-over').classList.add('hidden');
+  updateLivesUI();
+  updateHUD();
+  initWave();
+  initOrbs();
+  STATE='playing';
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', startGame);
+
+// ═══════════════════════════════════════════
+//  HUD HELPERS
+// ═══════════════════════════════════════════
+function updateHUD(){
+  document.getElementById('hud-score').textContent = score;
+  document.getElementById('hud-best').textContent  = bestScore;
+  document.getElementById('wave-num').textContent  = wave;
+}
+function updateLivesUI(){
+  const el = document.getElementById('lives');
+  el.innerHTML='';
+  for(let i=0;i<3;i++){
+    const d=document.createElement('div');
+    d.className='life-dot'+(i>=lives?' dead':'');
+    el.appendChild(d);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  TAG (scorpio hits cursor)
+// ═══════════════════════════════════════════
+function onTag(sc){
+  if(invincible) return;
+  lives--;
+  updateLivesUI();
+  invincible=true; invTimer=1800; // 1.8s grace
+  sc.tagCooldown=120;
+
+  // Flash
+  const flash = document.getElementById('tag-flash');
+  flash.style.opacity='1';
+  setTimeout(()=>flash.style.opacity='0',180);
+
+  // Vibrate if supported
+  if(navigator.vibrate) navigator.vibrate(120);
+
+  if(lives<=0){ endGame(); }
+}
+
+function endGame(){
+  STATE='over';
+  if(score>bestScore){ bestScore=score; localStorage.setItem('sz_best',bestScore); }
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-wave').textContent  = wave;
+  document.getElementById('go-best').textContent  = bestScore;
+  document.getElementById('hud-best').textContent = bestScore;
+  document.getElementById('screen-over').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════
+//  ORB COLLECT
+// ═══════════════════════════════════════════
+function checkOrbs(){
+  for(let i=orbs.length-1;i>=0;i--){
+    const o=orbs[i];
+    const d=Math.hypot(mouse.x-o.x, mouse.y-o.y);
+    if(d < o.r+18){
+      score += o.value;
+      popText('+'+o.value, o.x, o.y);
+      orbs.splice(i,1);
+      setTimeout(spawnOrb, 1200+Math.random()*2000);
+    }
+  }
+}
+
+function popText(txt,x,y){
+  const el=document.createElement('div');
+  el.className='orb-pop';
+  el.textContent=txt;
+  el.style.left=x+'px'; el.style.top=y+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 900);
+}
+
+// ═══════════════════════════════════════════
+//  WAVE ANNOUNCE
+// ═══════════════════════════════════════════
+function announceWave(w){
+  const el=document.getElementById('wave-announce');
+  el.textContent=`WAVE ${w}`;
+  el.style.opacity='1';
+  el.style.transition='opacity 0.25s';
+  setTimeout(()=>{ el.style.transition='opacity 1s'; el.style.opacity='0'; }, 1600);
+}
+
+// ═══════════════════════════════════════════
+//  SCORPIO PHYSICS
+// ═══════════════════════════════════════════
+function updateScorpios(dt){
+  scorpios.forEach(sc=>{
+    if(sc.tagCooldown>0) sc.tagCooldown-=dt;
+
+    const dx=mouse.x-sc.x, dy=mouse.y-sc.y;
+    const dist=Math.hypot(dx,dy)||1;
+
+    // accelerate toward cursor
+    const force = Math.min(dist*0.06, sc.speed);
+    sc.vx += (dx/dist)*force*0.3;
+    sc.vy += (dy/dist)*force*0.3;
+
+    // cap speed
+    const spd=Math.hypot(sc.vx,sc.vy);
+    if(spd>sc.speed*1.6){ sc.vx=sc.vx/spd*sc.speed*1.6; sc.vy=sc.vy/spd*sc.speed*1.6; }
+
+    sc.vx*=0.88; sc.vy*=0.88;
+    sc.x+=sc.vx; sc.y+=sc.vy;
+
+    if(Math.hypot(sc.vx,sc.vy)>0.3) sc.angle=Math.atan2(sc.vy,sc.vx);
+
+    // tail
+    sc.tail[0].x = sc.x - Math.cos(sc.angle)*18;
+    sc.tail[0].y = sc.y - Math.sin(sc.angle)*18;
+    for(let i=1;i<sc.tail.length;i++){
+      const p=sc.tail[i-1],s=sc.tail[i];
+      const tdx=s.x-p.x, tdy=s.y-p.y;
+      const td=Math.hypot(tdx,tdy)||1;
+      s.x=p.x+(tdx/td)*10;
+      s.y=p.y+(tdy/td)*10;
+    }
+
+    // collision with cursor
+    if(sc.tagCooldown<=0 && Math.hypot(mouse.x-sc.x,mouse.y-sc.y)<30){
+      onTag(sc);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  TRAIL
+// ═══════════════════════════════════════════
+const trailPts=[];
+function updateTrail(){
+  if(STATE!=='playing') return;
+  trailPts.push({x:mouse.x,y:mouse.y,h:hueOff});
+  if(trailPts.length>70) trailPts.shift();
+  xt.clearRect(0,0,CT.width,CT.height);
+  for(let i=1;i<trailPts.length;i++){
+    const p=trailPts[i],q=trailPts[i-1];
+    const a=(i/trailPts.length)*.25;
+    xt.save();
+    xt.strokeStyle=hsl(p.h,100,65,a);
+    xt.lineWidth=5*(i/trailPts.length);
+    xt.lineCap='round';
+    xt.shadowColor=hsl(p.h,100,65); xt.shadowBlur=8;
+    xt.beginPath(); xt.moveTo(q.x,q.y); xt.lineTo(p.x,p.y); xt.stroke();
+    xt.restore();
+  }
+}
+
+// ═══════════════════════════════════════════
+//  DRAW SCORPIO
+// ═══════════════════════════════════════════
+function drawSegment(x,y,rx,ry,hue,glow){
+  xg.save();
+  xg.translate(x,y);
+  if(glow){ xg.shadowColor=hsl(hue,100,65); xg.shadowBlur=16; }
+  const g=xg.createRadialGradient(0,0,0,0,0,rx);
+  g.addColorStop(0,hsl(hue,100,82));
+  g.addColorStop(1,hsl(hue,100,44,.85));
+  xg.fillStyle=g;
+  xg.beginPath(); xg.ellipse(0,0,rx,ry,0,0,Math.PI*2); xg.fill();
+  xg.restore();
+}
+
+function drawScorpio(sc, hueBase){
+  xg.save();
+  xg.translate(sc.x,sc.y);
+  xg.rotate(sc.angle);
+
+  // invincible flicker
+  if(invincible && Math.floor(Date.now()/80)%2===0 && sc===scorpios[0]) xg.globalAlpha=.4;
+
+  // body
+  for(let i=0;i<4;i++) drawSegment((-6+i*6),0,(10-i),(7-i*.5),(hueBase+i*22)%360,true);
+
+  // head
+  xg.save();
+  xg.translate(20,0);
+  xg.shadowColor=hsl((hueBase+80)%360,100,65); xg.shadowBlur=20;
+  const hg=xg.createRadialGradient(0,0,0,0,0,10);
+  hg.addColorStop(0,hsl((hueBase+80)%360,100,90));
+  hg.addColorStop(1,hsl((hueBase+80)%360,100,42));
+  xg.fillStyle=hg;
+  xg.beginPath(); xg.ellipse(0,0,10,8,0,0,Math.PI*2); xg.fill();
+  xg.restore();
+
+  // eyes
+  [[-2,-3.5],[-2,3.5]].forEach(([ex,ey])=>{
+    xg.save(); xg.translate(23+ex,ey);
+    xg.shadowColor='#fff'; xg.shadowBlur=8;
+    xg.fillStyle='#fff'; xg.beginPath(); xg.arc(0,0,2.2,0,Math.PI*2); xg.fill();
+    xg.fillStyle='#111'; xg.beginPath(); xg.arc(.4,0,1.1,0,Math.PI*2); xg.fill();
+    xg.restore();
+  });
+
+  // claws
+  [-1,1].forEach(side=>{
+    const ch=(hueBase+130)%360;
+    xg.save(); xg.translate(26,side*3.5); xg.rotate(side*.32);
+    xg.shadowColor=hsl(ch,100,65); xg.shadowBlur=12;
+    xg.strokeStyle=hsl(ch,100,72); xg.lineWidth=2.5; xg.lineCap='round';
+    xg.beginPath(); xg.moveTo(0,0); xg.lineTo(13,side*7); xg.stroke();
+    xg.beginPath(); xg.moveTo(13,side*7); xg.lineTo(20,side*3); xg.stroke();
+    xg.beginPath(); xg.moveTo(13,side*7); xg.lineTo(19,side*11); xg.stroke();
+    xg.restore();
+  });
+
+  // legs
+  for(let i=0;i<4;i++){
+    const lh=(hueBase+i*18+50)%360;
+    [-1,1].forEach(side=>{
+      xg.save(); xg.translate((-1+i*5.5),0);
+      xg.shadowColor=hsl(lh,100,65); xg.shadowBlur=6;
+      xg.strokeStyle=hsl(lh,100,72); xg.lineWidth=1.8; xg.lineCap='round';
+      xg.beginPath(); xg.moveTo(0,0); xg.lineTo(side*7,side*11); xg.lineTo(side*3.5,side*18); xg.stroke();
+      xg.restore();
+    });
+  }
+
+  xg.globalAlpha=1;
+  xg.restore();
+}
+
+function drawTail(sc, hueBase){
+  sc.tail.forEach((p,i)=>{
+    const hue=(hueBase+i*16)%360;
+    const r=Math.max(1.5, 8-i*.42);
+    const a=1-i/sc.tail.length*.55;
+    xg.save();
+    xg.shadowColor=hsl(hue,100,65); xg.shadowBlur=10;
+    const g=xg.createRadialGradient(p.x,p.y,0,p.x,p.y,r);
+    g.addColorStop(0,hsl(hue,100,85,a));
+    g.addColorStop(1,hsl(hue,100,45,0));
+    xg.fillStyle=g; xg.beginPath(); xg.arc(p.x,p.y,r,0,Math.PI*2); xg.fill();
+    xg.restore();
+  });
+  // stinger
+  const last=sc.tail[sc.tail.length-1];
+  const prev=sc.tail[sc.tail.length-2];
+  const sa=Math.atan2(last.y-prev.y,last.x-prev.x);
+  const sh=(hueBase+200)%360;
+  xg.save(); xg.translate(last.x,last.y); xg.rotate(sa);
+  xg.shadowColor=hsl(sh,100,65); xg.shadowBlur=16;
+  xg.strokeStyle=hsl(sh,100,80); xg.lineWidth=2.5; xg.lineCap='round';
+  xg.beginPath(); xg.moveTo(0,0); xg.bezierCurveTo(10,0,12,-9,7,-14); xg.stroke();
+  xg.fillStyle=hsl(sh,100,100); xg.beginPath(); xg.arc(7,-14,2.5,0,Math.PI*2); xg.fill();
+  xg.restore();
+}
+
+// ═══════════════════════════════════════════
+//  DRAW ORBS
+// ═══════════════════════════════════════════
+function drawOrbs(){
+  orbs.forEach(o=>{
+    o.pulse+=0.06;
+    const r=o.r + Math.sin(o.pulse)*2.5;
+    xg.save();
+    xg.shadowColor=hsl(o.hue,100,65); xg.shadowBlur=22;
+    const g=xg.createRadialGradient(o.x,o.y,0,o.x,o.y,r);
+    g.addColorStop(0,hsl(o.hue,100,95,.95));
+    g.addColorStop(.5,hsl(o.hue,100,65,.7));
+    g.addColorStop(1,hsl(o.hue,100,45,0));
+    xg.fillStyle=g; xg.beginPath(); xg.arc(o.x,o.y,r,0,Math.PI*2); xg.fill();
+    // inner sparkle
+    xg.fillStyle=`rgba(255,255,255,.9)`;
+    xg.beginPath(); xg.arc(o.x,o.y,r*.25,0,Math.PI*2); xg.fill();
+    o.hue=(o.hue+1)%360;
+    xg.restore();
+  });
+}
+
+// ═══════════════════════════════════════════
+//  DANGER RING (proximity warning)
+// ═══════════════════════════════════════════
+function drawDangerRings(){
+  scorpios.forEach(sc=>{
+    const d=Math.hypot(mouse.x-sc.x,mouse.y-sc.y);
+    if(d<120){
+      const a=(1-d/120)*.4;
+      xg.save();
+      xg.strokeStyle=`rgba(255,0,60,${a})`;
+      xg.lineWidth=2;
+      xg.setLineDash([4,6]);
+      xg.beginPath(); xg.arc(mouse.x,mouse.y,30,0,Math.PI*2); xg.stroke();
+      xg.restore();
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════
+let lastTime=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=now-lastTime; lastTime=now;
+  tick++; hueOff=tick*1.2;
+
+  drawStars();
+  xg.clearRect(0,0,CG.width,CG.height);
+
+  if(STATE==='playing'){
+    // timers
+    survivalTimer+=dt;
+    waveTimer+=dt;
+    if(invincible){ invTimer-=dt; if(invTimer<=0)invincible=false; }
+
+    // score from survival
+    if(tick%55===0){ score+=1; }
+
+    // wave progression
+    if(waveTimer>=WAVE_DURATION){
+      waveTimer=0;
+      wave++;
+      score+=wave*15; // wave bonus
+      popText(`WAVE ${wave} +${wave*15}`, innerWidth/2, innerHeight/2-40);
+      initWave();
+      announceWave(wave);
+    }
+
+    updateHUD();
+    updateScorpios(dt);
+    checkOrbs();
+    updateTrail();
+
+    // draw orbs
+    drawOrbs();
+    // draw danger rings
+    drawDangerRings();
+    // draw each scorpio
+    scorpios.forEach((sc,i)=>{
+      const h=(sc.hueBase+hueOff*0.8)%360;
+      drawTail(sc,h);
+      drawScorpio(sc,h);
+    });
+
+    // draw cursor target ring
+    xg.save();
+    xg.strokeStyle=`rgba(255,255,255,${0.15+Math.sin(tick*.08)*.08})`;
+    xg.lineWidth=1.5;
+    xg.beginPath(); xg.arc(mouse.x,mouse.y,22,0,Math.PI*2); xg.stroke();
+    xg.restore();
+  }
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
